@@ -1,4 +1,5 @@
 **SoundClock**
+
 I spend my days at a university testing center working with students who have special needs. They are a wonderful, inspiring group of people.
 
 Have you ever noticed that the world has its own "sound clock"? In the morning, you hear birds. In the afternoon, you hear the loud hum of rush-hour traffic. Late at night, you might hear the hoot of an owl. At the same time, many of us love sound machines. We use them to play rain or white noise because those sounds are so relaxing.
