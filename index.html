@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chronometry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { 
+            background-color: black; 
+            margin: 0; 
+            color: white; 
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body { overscroll-behavior-y: contain; overflow-x: hidden; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        .tab-active { color: #06b6d4; }
+        .glass-panel { background: rgba(15, 15, 15, 0.7); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- ICON COMPONENTS (Inline SVGs for reliability) ---
+        const Icons = {
+            Hourglass: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>,
+            Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            Dumbbell: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1.5-1.5"/><path d="m3 3 1.5 1.5"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>,
+            Info: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
+            Play: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+            RotateCcw: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        };
+
+        const translations = {
+            appTitle: "Chronometry",
+            serviceActive: "SERVICE ACTIVE",
+            serviceStopped: "SERVICE STOPPED",
+            startClock: "START CLOCK",
+            stopClock: "STOP CLOCK",
+            clockType: "CLOCK TYPE",
+            soundMachine: "Sound Machine", natureTheme: "Nature Theme", toneTheme: "Tone Theme",
+            activeDays: "ACTIVE DAYS", silence: "Silence", labelHours: "Hours", labelTenMin: "10min",
+            noSchedule: "No schedule assigned for today", amPm: "AM/PM", pmLabel: "PM",
+            nextSoundWarning: "Next sound within 60 seconds",
+            statusSilent: "Current Status: Silent", statusPlaying: (theme) => `Playing: ${theme}`,
+            summaryTitle: "SOUND SUMMARY", clockOne: "Clock 1", clockTwo: "Clock 2",
+            trainingMode: "Training Mode", startAction: "START", replayAction: "REPLAY",
+            resetProgress: "Reset to Level 1", levelDisplay: (level) => `Level: ${level}`,
+            listenCarefully: (level) => `Level ${level}: Listen carefully...`,
+            incorrectAnswer: (answer) => `Incorrect. Answer: ${answer}`,
+            pressStart: "Press Start to begin",
+        };
+
+        const SOUND_TITLES = {
+            'greynoise.mp3': 'Grey Noise', 'shipambiance.mp3': 'Ship Ambiance', 'whitenoise.mp3': 'White Noise',
+            'distantowls.mp3': 'Distant Owl', 'forestbirds.wav': 'Forest Birds', 'gardenbirds.wav': 'Garden Birds',
+            'seagulls.mp3': 'Seagulls', 'sunrisebirdsriver.wav': 'River Birds', 'blowingwind.mp3': 'Blowing Wind',
+            'campfirewind.wav': 'Camp Fire', 'cracklingfire.mp3': 'Fireplace', 'woodchimes.mp3': 'Wood Chimes',
+            'electricbuzz.mp3': 'Electric Buzz', 'fan.mp3': 'Box Fan', 'jetengine.mp3': 'Jet Engine',
+            'kitchenfan.mp3': 'Kitchen Fan', 'mechhum.mp3': 'Machine Hum', 'planecabinmed.wav': 'Jet from Cabin',
+            'planecabinsoft.wav': 'Soft Jet', 'boilingpot.mp3': 'Boiling Pot', 'forestnight.mp3': 'Forest Night',
+            'slowchime.mp3': 'Slow Chime', 'rain15.wav': 'Loud Rain', 'rain39.wav': 'Soft Rain',
+            'rainatmosphere.wav': 'Medium Rain', 'relaxingrain.mp3': 'Relaxing Rain', 'clocktower.mp3': 'Clocktower',
+            'jinglingbells.mp3': 'Jingling Bells', 'smallbell.mp3': 'Small Bell', 'softalert.mp3': 'Soft Alert',
+            'softchime.mp3': 'Soft Chime', 'squish.mp3': 'Squish', 'ocean2.mp3': 'Ocean Waves',
+            'oceanwaves.mp3': 'Heavy Ocean Waves', 'woodwaterfall.wav': 'Waterfall', 'clocktowerchime.mp3': 'Clocktower Chime',
+            'distantheli.mp3': 'Distant Helicopter', 'distanttrainhorn.mp3': 'Distant Train Horn', 'distanttrainhorn2.mp3': 'Distant Train Whistle',
+            'lowfarthunder.mp3': 'Low Far Thunder', 'metalscrapeambi.mp3': 'Metal String', 'rollingthunder.mp3': 'Rolling Thunder',
+            'trainhorn.mp3': 'Loud Train Horn', 'trainstationambiance.mp3': 'Trainstation', 'batchirp.mp3': 'Bat Sonar',
+            'birdchirp3.mp3': 'Bird Chirp', 'birdchirp4.mp3': 'Soft Bird Chirp', 'cricketchirps.mp3': 'Cricket',
+            'cricketchirps2.mp3': 'Night Cricket', 'frogcroak.mp3': 'Frog', 'frogcroak2.mp3': 'Swamp Frog',
+            'frogcroak3.mp3': 'Marsh Frog', 'frogcroak4.mp3': 'Field Frog', 'nightfrogs.mp3': 'Night Frog',
+            'owlhoot.mp3': 'Owl Hoot', 'sonar.mp3': 'Soft Ping', 'sonar2.mp3': 'Deep Ping',
+            '5.wav': '5 Hz', '10.wav': '10 Hz', '15.wav': '15 Hz', '30.wav': '30 Hz', '200.wav': '200 Hz', '600.wav': '600 Hz', '1200.wav': '1200 Hz',
+            'Silence': 'Silence'
+        };
+
+        const THEME_SOUNDS = {
+            'Sound Machine': {
+                A: ['greynoise.mp3', 'shipambiance.mp3', 'whitenoise.mp3', 'ocean2.mp3', 'oceanwaves.mp3', 'woodwaterfall.wav', 'trainstationambiance.mp3'],
+                B: ['distantowls.mp3', 'forestbirds.wav', 'gardenbirds.wav', 'seagulls.mp3', 'sunrisebirdsriver.wav'],
+                C: ['blowingwind.mp3', 'campfirewind.wav', 'cracklingfire.mp3', 'woodchimes.mp3'],
+                D: ['electricbuzz.mp3', 'fan.mp3', 'jetengine.mp3', 'kitchenfan.mp3', 'mechhum.mp3', 'planecabinmed.wav', 'planecabinsoft.wav', 'distantheli.mp3', 'distanttrainhorn.mp3', 'distanttrainhorn2.mp3', 'trainhorn.mp3'],
+                E: ['boilingpot.mp3', 'forestnight.mp3', 'slowchime.mp3', 'clocktowerchime.mp3', 'lowfarthunder.mp3', 'metalscrapeambi.mp3', 'rollingthunder.mp3'],
+                F: ['rain15.wav', 'rain39.wav', 'rainatmosphere.wav', 'relaxingrain.mp3'],
+                G: ['Silence', 'clocktower.mp3', 'jinglingbells.mp3', 'smallbell.mp3', 'softalert.mp3', 'softchime.mp3', 'squish.mp3'],
+            },
+            'Nature Theme': {
+                A: ['cricketchirps.mp3', 'cricketchirps2.mp3'], B: ['frogcroak.mp3', 'frogcroak2.mp3', 'frogcroak3.mp3', 'frogcroak4.mp3', 'nightfrogs.mp3'],
+                C: ['birdchirp3.mp3', 'birdchirp4.mp3'], D: ['owlhoot.mp3', 'distantowls.mp3'], E: ['batchirp.mp3'], F: ['sonar.mp3', 'sonar2.mp3'],
+                G: ['Silence', 'jinglingbells.mp3', 'squish.mp3', 'softchime.mp3', 'softalert.mp3'],
+            },
+            'Tone Theme': {
+                A: ['5.wav'], B: ['10.wav'], C: ['15.wav'], D: ['30.wav'], E: ['200.wav'], F: ['600.wav'], G: ['Silence', '1200.wav'],
+            }
+        };
+
+        const DEFAULT_SET = {
+            clockType: 'Sound Machine', catA: 'greynoise.mp3', catB: 'gardenbirds.wav', catC: 'cracklingfire.mp3', catD: 'fan.mp3',
+            catE: 'slowchime.mp3', catF: 'relaxingrain.mp3', catG: 'smallbell.mp3',
+            startTime: "00:00", endTime: "23:59", activeDays: [1, 2, 3, 4, 5, 6, 7]
+        };
+
+        const getActiveSet = (set1, set2) => {
+            const now = new Date();
+            const day = now.getDay() === 0 ? 7 : now.getDay();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            const check = (s) => {
+                if (!s.activeDays.includes(day)) return null;
+                const [sh, sm] = s.startTime.split(':').map(Number);
+                const [eh, em] = s.endTime.split(':').map(Number);
+                const start = sh * 60 + sm;
+                const end = eh * 60 + em;
+                return (currentMinutes >= start && currentMinutes <= end) ? s : null;
+            };
+            return check(set1) || check(set2);
+        };
+
+        function App() {
+            const [view, setView] = useState('main'); 
+            const [isRunning, setIsRunning] = useState(false);
+            const [set1, setSet1] = useState(() => JSON.parse(localStorage.getItem('set1')) || { ...DEFAULT_SET, activeDays: [1,2,3,4,5] });
+            const [set2, setSet2] = useState(() => JSON.parse(localStorage.getItem('set2')) || { ...DEFAULT_SET, activeDays: [6,7] });
+            const [highScore, setHighScore] = useState(() => Number(localStorage.getItem('trainingHighScore')) || 1);
+            const [currentTime, setCurrentTime] = useState(new Date());
+
+            useEffect(() => {
+                localStorage.setItem('set1', JSON.stringify(set1));
+                localStorage.setItem('set2', JSON.stringify(set2));
+                localStorage.setItem('trainingHighScore', highScore);
+            }, [set1, set2, highScore]);
+
+            useEffect(() => {
+                const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            useEffect(() => {
+                const timeStr = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const icon = isRunning ? "" : "";
+                document.title = `${icon} ${timeStr} | Chronometry`;
+            }, [currentTime, isRunning]);
+
+            const playSegment = useCallback(async (file, ints, clockType) => {
+                if (!file || file === 'Silence') return;
+                const isAmbient = clockType === 'Sound Machine';
+                for (let i = 0; i <= ints; i++) {
+                    const audio = new Audio(`assets/sounds/${file}`);
+                    audio.volume = 0.7;
+                    try {
+                        await audio.play();
+                        if (isAmbient) {
+                            await new Promise(r => setTimeout(r, 4000));
+                            audio.pause();
+                        } else {
+                            await new Promise(r => audio.onended = r);
+                        }
+                    } catch (e) { break; }
+                    if (i < ints) await new Promise(r => setTimeout(r, 100));
+                }
+            }, []);
+
+            const playTimeCycle = useCallback(async (time, set) => {
+                const h12 = time.getHours() % 12;
+                const hFile = h12 <= 2 ? set.catA : h12 <= 5 ? set.catB : h12 <= 8 ? set.catC : set.catD;
+                await playSegment(hFile, h12 % 3, set.clockType);
+                await new Promise(r => setTimeout(r, 500));
+
+                const tMin = Math.floor(time.getMinutes() / 10) * 10;
+                const tFile = tMin <= 20 ? set.catE : set.catF;
+                await playSegment(tFile, Math.floor(time.getMinutes() / 10) % 3, set.clockType);
+                await new Promise(r => setTimeout(r, 500));
+
+                const mDigit = time.getMinutes() % 10;
+                const mFile = mDigit <= 2 ? set.catA : mDigit <= 5 ? set.catB : mDigit <= 8 ? set.catC : set.catD;
+                await playSegment(mFile, mDigit === 9 ? 0 : mDigit % 3, set.clockType);
+
+                if (time.getHours() >= 12 && set.catG !== 'Silence') {
+                    await new Promise(r => setTimeout(r, 500));
+                    new Audio(`assets/sounds/${set.catG}`).play();
+                }
+            }, [playSegment]);
+
+            useEffect(() => {
+                if (!isRunning) return;
+                const tick = () => {
+                    const now = new Date();
+                    if (now.getSeconds() === 0) {
+                        const active = getActiveSet(set1, set2);
+                        if (active) playTimeCycle(now, active);
+                    }
+                };
+                const interval = setInterval(tick, 1000);
+                const activeStart = getActiveSet(set1, set2);
+                if (activeStart) playTimeCycle(new Date(), activeStart);
+                return () => clearInterval(interval);
+            }, [isRunning, set1, set2, playTimeCycle]);
+
+            const renderDashboard = () => {
+                const active = getActiveSet(set1, set2);
+                const today = new Date().getDay() || 7;
+                const todaySet = set1.activeDays.includes(today) ? set1 : (set2.activeDays.includes(today) ? set2 : null);
+
+                return (
+                    <div className="flex flex-col items-center p-6 space-y-12 max-w-lg mx-auto">
+                        <div className="flex flex-col items-center space-y-4">
+                            <div className={`p-8 rounded-full bg-zinc-800 border-4 transition-all duration-700 ${isRunning ? 'border-cyan-500 text-cyan-500 shadow-[0_0_30px_rgba(6,182,212,0.3)] animate-pulse' : 'border-zinc-700 text-zinc-500'}`}>
+                                <Icons.Hourglass />
+                            </div>
+                            <h1 className="text-3xl font-black italic tracking-tighter uppercase">{isRunning ? translations.serviceActive : translations.serviceStopped}</h1>
+                            <p className="text-zinc-500 text-sm">{!active ? translations.statusSilent : translations.statusPlaying(active.clockType)}</p>
+                        </div>
+                        <button onClick={() => setIsRunning(!isRunning)} className={`w-full py-6 rounded-3xl text-xl font-black tracking-widest uppercase shadow-2xl transition-all active:scale-95 ${isRunning ? 'bg-red-600' : 'bg-cyan-600'}`}>
+                            {isRunning ? translations.stopClock : translations.startClock}
+                        </button>
+                        {todaySet && (
+                            <div className="w-full bg-zinc-900/50 border border-zinc-800 rounded-3xl overflow-hidden divide-y divide-zinc-800 backdrop-blur-sm">
+                                <SummaryRow label={translations.labelHours} val="0, 1, 2" file={todaySet.catA} />
+                                <SummaryRow label={translations.labelHours} val="3, 4, 5" file={todaySet.catB} />
+                                <SummaryRow label={translations.labelHours} val="6, 7, 8" file={todaySet.catC} />
+                                <SummaryRow label={translations.labelHours} val="9, 10, 11" file={todaySet.catD} />
+                                <SummaryRow label={translations.labelTenMin} val="00, 10, 20" file={todaySet.catE} />
+                                <SummaryRow label={translations.labelTenMin} val="30, 40, 50" file={todaySet.catF} />
+                                <SummaryRow label={translations.amPm} val={translations.pmLabel} file={todaySet.catG} />
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const SummaryRow = ({ label, val, file }) => (
+                <div className="flex items-center justify-between p-5 text-sm">
+                    <div className="flex flex-col flex-1"><span className="text-zinc-600 text-[10px] uppercase font-black">{label}</span><span className="text-zinc-400 font-mono">{val}</span></div>
+                    <div className="flex-1 text-cyan-400 font-bold truncate pr-4 text-center">{SOUND_TITLES[file]}</div>
+                    <button onClick={() => file !== 'Silence' && new Audio(`assets/sounds/${file}`).play()} className="p-3 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-cyan-400"><Icons.Play /></button>
+                </div>
+            );
+
+            const renderSettings = () => {
+                const [activeTab, setActiveTab] = useState(1);
+                const currentSet = activeTab === 1 ? set1 : set2;
+                const updateSet = (up) => activeTab === 1 ? setSet1(p => ({ ...p, ...up })) : setSet2(p => ({ ...p, ...up }));
+
+                return (
+                    <div className="flex flex-col p-6 space-y-10 max-w-lg mx-auto">
+                        <div className="flex border-b border-zinc-800 pb-2">
+                            <button onClick={() => setActiveTab(1)} className={`flex-1 py-3 font-black text-xs tracking-widest uppercase ${activeTab === 1 ? 'text-cyan-500 border-b-2 border-cyan-500' : 'text-zinc-600'}`}>{translations.clockOne}</button>
+                            <button onClick={() => setActiveTab(2)} className={`flex-1 py-3 font-black text-xs tracking-widest uppercase ${activeTab === 2 ? 'text-cyan-500 border-b-2 border-cyan-500' : 'text-zinc-600'}`}>{translations.clockTwo}</button>
+                        </div>
+                        <section className="space-y-3">
+                            <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{translations.clockType}</h3>
+                            <select value={currentSet.clockType} onChange={(e) => updateSet({ clockType: e.target.value, ...THEME_SOUNDS[e.target.value] })} className="w-full bg-zinc-900 border border-zinc-800 p-4 rounded-2xl font-bold">
+                                <option value="Sound Machine">Sound Machine</option><option value="Nature Theme">Nature Theme</option><option value="Tone Theme">Tone Theme</option>
+                            </select>
+                        </section>
+                        <section className="space-y-3">
+                            <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{translations.activeDays}</h3>
+                            <div className="flex justify-between gap-2">
+                                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => {
+                                    const dayNum = i + 1;
+                                    const isSel = currentSet.activeDays.includes(dayNum);
+                                    return <button key={i} onClick={() => updateSet({ activeDays: isSel ? currentSet.activeDays.filter(x => x !== dayNum) : [...currentSet.activeDays, dayNum] })} className={`flex-1 aspect-square rounded-2xl font-black text-xs ${isSel ? 'bg-cyan-500 text-black' : 'bg-zinc-900 text-zinc-600'}`}>{d}</button>
+                                })}
+                            </div>
+                        </section>
+                    </div>
+                );
+            };
+
+            const renderTraining = () => {
+                const [level, setLevel] = useState(highScore);
+                const [targetTime, setTargetTime] = useState(null);
+                const [feedback, setFeedback] = useState(translations.pressStart);
+                const [guess, setGuess] = useState("");
+
+                const generateChallenge = () => {
+                    const h = Math.floor(Math.random() * 12) + 1;
+                    const m = Math.floor(Math.random() * 60);
+                    setTargetTime({ h, m });
+                    setGuess("");
+                    setFeedback(translations.listenCarefully(level));
+                    const time = new Date(); time.setHours(h); time.setMinutes(m);
+                    playTimeCycle(time, set1);
+                };
+
+                const checkAnswer = () => {
+                    const input = guess.padStart(4, '0');
+                    const gH = parseInt(input.slice(0, 2)) % 12 || 12;
+                    const gM = parseInt(input.slice(2));
+                    if (gH === targetTime.h && (level <= 12 || gM === targetTime.m)) {
+                        setLevel(p => { const next = p + 1; if (next > highScore) setHighScore(next); return next; });
+                        setFeedback("Correct!");
+                        setTimeout(generateChallenge, 1500);
+                    } else { setFeedback(translations.incorrectAnswer(`${targetTime.h.toString().padStart(2, '0')}${targetTime.m.toString().padStart(2, '0')}`)); }
+                };
+
+                return (
+                    <div className="flex flex-col items-center p-6 space-y-8 max-w-lg mx-auto">
+                        <h2 className="text-5xl font-black italic tracking-tighter text-white uppercase">{translations.levelDisplay(level)}</h2>
+                        <div className="text-cyan-400 font-bold uppercase tracking-widest text-xs">{feedback}</div>
+                        <button onClick={targetTime ? () => { const t = new Date(); t.setHours(targetTime.h); t.setMinutes(targetTime.m); playTimeCycle(t, set1); } : generateChallenge} className="bg-zinc-900 p-10 rounded-full text-cyan-500 shadow-xl border-2 border-cyan-500/20"><Icons.Play /></button>
+                        <input type="number" placeholder="HHMM" value={guess} onChange={(e) => { const v = e.target.value.slice(0, 4); setGuess(v); if (v.length === 4) checkAnswer(); }} className="w-full bg-transparent border-b-4 border-zinc-800 text-6xl text-center py-6 outline-none font-black tracking-widest" />
+                        <button onClick={() => { setHighScore(1); setLevel(1); setTargetTime(null); }} className="text-zinc-700 text-xs font-black uppercase tracking-widest flex items-center gap-2"><Icons.RotateCcw /> Reset</button>
+                    </div>
+                );
+            };
+
+            const renderAbout = () => (
+                <div className="p-8 space-y-10 max-w-lg mx-auto text-center">
+                    <div className="w-20 h-20 bg-cyan-500/10 rounded-3xl flex items-center justify-center mx-auto text-cyan-500"><Icons.Hourglass /></div>
+                    <h2 className="text-3xl font-black italic tracking-tighter uppercase">{translations.appTitle}</h2>
+                    <p className="text-zinc-500 text-sm leading-relaxed">The acoustic clock that tells you the time through sound. Designed for use in complete darkness.</p>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen bg-black flex flex-col">
+                    <header className="px-6 py-5 flex items-center justify-between border-b border-zinc-900 sticky top-0 bg-black/50 backdrop-blur-md z-50">
+                        <h2 className="text-2xl font-black italic tracking-tighter text-cyan-500 uppercase">{translations.appTitle}</h2>
+                        <div className="text-zinc-500 font-black text-xs uppercase tracking-widest">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </header>
+                    <main className="flex-1 pb-40 overflow-y-auto">
+                        {view === 'main' && renderDashboard()}
+                        {view === 'settings' && renderSettings()}
+                        {view === 'training' && renderTraining()}
+                        {view === 'about' && renderAbout()}
+                    </main>
+                    <nav className="fixed bottom-0 left-0 right-0 glass-panel border-t border-zinc-900/50 px-6 py-4 flex justify-between items-center z-50">
+                        <button onClick={() => setView('main')} className={`flex flex-col items-center gap-1 ${view === 'main' ? 'text-cyan-500' : 'text-zinc-600'}`}><Icons.Hourglass /><span className="text-[9px] font-black uppercase tracking-widest">Home</span></button>
+                        <button onClick={() => setView('training')} className={`flex flex-col items-center gap-1 ${view === 'training' ? 'text-cyan-500' : 'text-zinc-600'}`}><Icons.Dumbbell /><span className="text-[9px] font-black uppercase tracking-widest">Train</span></button>
+                        <button onClick={() => setView('settings')} className={`flex flex-col items-center gap-1 ${view === 'settings' ? 'text-cyan-500' : 'text-zinc-600'}`}><Icons.Settings /><span className="text-[9px] font-black uppercase tracking-widest">Set</span></button>
+                        <button onClick={() => setView('about')} className={`flex flex-col items-center gap-1 ${view === 'about' ? 'text-cyan-500' : 'text-zinc-600'}`}><Icons.Info /><span className="text-[9px] font-black uppercase tracking-widest">Info</span></button>
+                    </nav>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
