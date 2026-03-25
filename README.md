@@ -1,12 +1,11 @@
-An open-source acoustic time-encoding standard for accessibility, institutional environments, and non-visual temporal awareness.
-
+**SoundClock**
 I spend my days at a university testing center working with students who have special needs. They are a wonderful, inspiring group of people.
 
 Have you ever noticed that the world has its own "sound clock"? In the morning, you hear birds. In the afternoon, you hear the loud hum of rush-hour traffic. Late at night, you might hear the hoot of an owl. At the same time, many of us love sound machines. We use them to play rain or white noise because those sounds are so relaxing.
 
 This gave me an idea. What if we had a clock that told you the exact time without making you look at a screen?
 
-I looked it up and found that other people have made bird clocks or chiming clocks before. Some machines even let you play different sounds at different times. But none of them let you tell time down to the minute.
+A quick Google search revealed bird clocks or chiming clocks. Some machines even let you play different sounds at different times. But none of them let you tell time down to the minute.
 
 At first, I tried to give every hour its own special sound, but that was too much work. If we treat timekeeping as a combinatorial problem, we need to represent 720 minutes in a 12 hour cycle. In base 10, you would need 10 distinct sounds and hear them as sound 3, sound 1, sound 5 for 3:15, for example. In binary, you just need 2 but you would have to listen to a 10 sound sequence. A simpler approach would be 12-6-10 sounds for the hours, tens of minutes and single minutes. I went with this approach, but decided to recycle the hours sounds for single minutes as the tens of minutes divides the two. That still left me with 12-6 sounds.
 
